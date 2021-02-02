@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Articoli_Web_Service.Helpers;
 using ArticoliWebService.Services;
 using AutoMapper;
 using Helpers;
@@ -45,6 +46,9 @@ namespace Articoli_Web_Service
 
             var PriceWebApiSection = Configuration.GetSection("PriceWebApi");
             services.Configure<PriceWebApi>(PriceWebApiSection);
+
+            var PromoWebApiSection = Configuration.GetSection("PromoWebApi");
+            services.Configure<PromoWebApi>(PromoWebApiSection);
 
             //Otteniamo la parola chiave
             var appSettings = appSettingsSection.Get<AppSettings>();

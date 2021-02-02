@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using Articoli_Web_Service.Helpers;
 using ArticoliWebService.Dtos;
 using ArticoliWebService.Models;
 using ArticoliWebService.Resource;
@@ -25,11 +26,13 @@ namespace ArticoliWebService.Controllers
     {
         private readonly IArticoliRepository articolirepository;
         private readonly PriceWebApi priceWebApi;
+        private readonly PromoWebApi promoWebApi;        
 
-        public ArticoliController(IArticoliRepository articolirepository, IOptions<PriceWebApi> priceWebApi)
+        public ArticoliController(IArticoliRepository articolirepository, IOptions<PriceWebApi> priceWebApi, IOptions<PromoWebApi> promoWebApi)
         {
             this.articolirepository = articolirepository;
             this.priceWebApi = priceWebApi.Value;
+            this.promoWebApi = promoWebApi.Value;
         }
 
         [HttpGet("test")]
@@ -66,7 +69,11 @@ namespace ArticoliWebService.Controllers
             foreach(var articolo in articoli)
             {                
                 PrezziDTO prezzoDTO = await getPriceArtAsync(articolo.CodArt, IdList, accessToken);
-                articoliDto.Add(this.CreateArticoloDTO(articolo, prezzoDTO)); 
+
+                decimal Prezzo = (prezzoDTO != null) ? prezzoDTO.Prezzo : 0;
+                decimal Promo = await this.getPromoArtAsync(articolo.CodArt, accessToken);
+
+                articoliDto.Add(this.CreateArticoloDTO(articolo, prezzoDTO, Promo)); 
 
             }
 
@@ -113,7 +120,7 @@ namespace ArticoliWebService.Controllers
            
         }
 */
-        private ArticoliDto CreateArticoloDTO(Articoli articolo, PrezziDTO prezzoDto)
+        private ArticoliDto CreateArticoloDTO(Articoli articolo, PrezziDTO prezzoDto, decimal promo)
         {
             //Console.WriteLine($"Codice: {articolo.CodArt}");
 
@@ -149,7 +156,8 @@ namespace ArticoliWebService.Controllers
                 IdStatoArt = (articolo.IdStatoArt != null) ? articolo.IdStatoArt.Trim() : "",
                 Iva = ivaDto,
                 Categoria = (articolo.famAssort != null) ? articolo.famAssort.Descrizione : "Non Definito",
-                Prezzo = prezzoDto.Prezzo
+                Prezzo = prezzoDto.Prezzo,
+                Promo = promo
             };
 
             return articoliDto;
@@ -175,6 +183,30 @@ namespace ArticoliWebService.Controllers
             return prezzo;
         }
 
+        private async Task<decimal> getPromoArtAsync(string CodArt, string Token)
+        {
+            decimal prezzo = 0;
+
+            using (var client = new HttpClient())
+            {
+                Token = Token.Replace("Bearer ","");
+
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+
+                try{
+                    var result = await client.GetAsync(this.promoWebApi.EndPoint + CodArt);
+                    var response = await result.Content.ReadAsStringAsync();
+                    prezzo = JsonConvert.DeserializeObject<decimal>(response);
+                } catch (HttpRequestException ex) {
+                    Console.WriteLine("Errore: impossibile contattare il servizio PromoArt. " + ex.Message);
+                    prezzo = -1;
+                }
+                
+            }
+
+            return prezzo;
+        }
+
         [HttpGet("cerca/codice/{CodArt}/{IdList?}", Name = "GetArticoli")]
         [ProducesResponseType(400)]
         [ProducesResponseType(404)]
@@ -194,7 +226,8 @@ namespace ArticoliWebService.Controllers
 
             var articolo = await this.articolirepository.SelArticoloByCodice(CodArt);
             PrezziDTO prezzoDTO = await getPriceArtAsync(articolo.CodArt, IdList, accessToken);
-            return Ok(CreateArticoloDTO(articolo, prezzoDTO));
+            decimal Promo = await this.getPromoArtAsync(articolo.CodArt, accessToken);
+            return Ok(CreateArticoloDTO(articolo, prezzoDTO, Promo));
         }
 
         [HttpGet("cerca/ean/{Ean}/{IdList?}")]
@@ -215,8 +248,9 @@ namespace ArticoliWebService.Controllers
             }
 
             PrezziDTO prezzoDTO = await getPriceArtAsync(articolo.CodArt, IdList, accessToken);
+            decimal Promo = await this.getPromoArtAsync(articolo.CodArt, accessToken);
 
-	        return Ok(CreateArticoloDTO(articolo, prezzoDTO));
+	        return Ok(CreateArticoloDTO(articolo, prezzoDTO, Promo));
             
         }
 

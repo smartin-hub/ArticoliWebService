@@ -18,6 +18,7 @@ namespace ArticoliWebService.Dtos
         public IvaDto Iva { get; set; }
         public string Categoria { get; set; }
         public decimal Prezzo {get;set;}
+        public decimal Promo { get; set; }
         
     }
 }
